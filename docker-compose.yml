@@ -1,0 +1,10 @@
+version: '3'
+services:
+  faucet:
+    container_name: faucet-all
+    build: ./
+    volumes:
+      - faucet:/tmp/.storage
+volumes:
+  faucet:
+    external: false
