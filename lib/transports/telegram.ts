@@ -26,8 +26,8 @@ export class TelegramTransport implements ITransport {
     this.#bot.onText(/\/request (.+)/, async (msg, match) => {
       const chatId = msg.chat.id;
       const address = match ? match[1] : '';
-      const username = msg.from?.id.toString();
-      console.log(msg.from);
+      const username = msg.from?.username;
+      const firstName = msg.from?.first_name.replace(/[\[\]]*/g,'')
       if (!username || !address) {
         return;
       }
@@ -39,8 +39,10 @@ export class TelegramTransport implements ITransport {
       if (diff > 0) {
         this.#bot.sendMessage(
           chatId,
-          `Don't be thirsty [${msg.from?.first_name}](tg://user?id=${msg.from?.id}), you can request again in ${diff} minutes`,
-          { parse_mode: 'Markdown' },
+          `Don't be thirsty [${firstName}](tg://user?id=${msg.from?.id}), you can request again in ${diff} minutes`,
+          {
+            parse_mode: 'Markdown',
+          }
         );
         return;
       }
@@ -48,18 +50,22 @@ export class TelegramTransport implements ITransport {
         const txHash = await fn(address);
         await this.#bot.sendMessage(
           chatId,
-          `Cool! [${msg.from?.first_name}](tg://user?id=${
-            msg.from?.id
-          }) Here is your tx: ${process.env.EXPLORER_URL || ''}${txHash}`,
-          { parse_mode: 'Markdown' },
+          `Cool! [${firstName}](tg://user?id=${msg.from?.id}) Here is your tx: ${
+            process.env.EXPLORER_URL || ''
+          }${txHash}`,
+          {
+            parse_mode: 'Markdown',
+          }
         );
         this.#cache.set(address, username, this.name);
       } catch (error) {
         console.error(error);
         await this.#bot.sendMessage(
           chatId,
-          `[${msg.from?.first_name}](tg://user?id=${msg.from?.id}) Something went wrong!`,
-          { parse_mode: 'Markdown' },
+          `Oh no! [${firstName}](tg://user?id=${msg.from?.id}) Something went wrong!`,
+          {
+            parse_mode: 'Markdown',
+          }
         );
       }
     });

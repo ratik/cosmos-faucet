@@ -1,5 +1,4 @@
 import {
-  ApplicationCommandOptionType,
   Client,
   GatewayIntentBits,
   REST,
@@ -40,7 +39,8 @@ export class DiscordTransport implements ITransport {
     });
 
     this.#client.on('ready', async () => {
-      const commands = [];
+      const commands = [
+      ];
       //update slash commands
       try {
         const rest = new REST({ version: '10' }).setToken(this.#token);
@@ -62,10 +62,13 @@ export class DiscordTransport implements ITransport {
 
   onRequest(fn): void {
     this.#client.on('messageCreate', async (msg) => {
+      console.log("got message");
       if (msg.author.bot) return;
       if (msg.content.startsWith('!$request')) return;
       const channelName = msg.guild?.channels.cache.get(msg.channelId)?.name;
-      if (channelName != this.#channelName) return;
+      if (!channelName ||  !channelName.includes(this.#channelName)) {
+	      return;
+      }
       const match = msg.content.match(/\$request\s+(.+)/);
       if (!match || !match[1]) return;
       const address = match[1];
@@ -73,7 +76,7 @@ export class DiscordTransport implements ITransport {
       const diff: number = await this.#cache.check(
         address,
         username,
-        'discord',
+        this.name,
       );
       if (diff > 0) {
         msg.reply(
@@ -88,7 +91,7 @@ export class DiscordTransport implements ITransport {
             process.env.EXPLORER_URL || ''
           }${txHash}`,
         );
-        this.#cache.set(address, username, 'discord');
+        this.#cache.set(address, username, this.name);
       } catch (error) {
         console.error(error);
         await msg.reply(`Oh no! @${username} Something went wrong!`);

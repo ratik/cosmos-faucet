@@ -1,6 +1,7 @@
 version: '3'
 services:
   faucet:
+    restart: always
     container_name: faucet-all
     build: ./
     volumes:

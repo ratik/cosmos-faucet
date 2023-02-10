@@ -3,10 +3,6 @@
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
-  "author": {
-    "name": "Sergey Ratiashvili",
-    "email": "serg.s.r@gmail.com"
-  },
   "scripts": {
     "start": "NODE_OPTIONS=--openssl-legacy-provider esr ./main.ts"
   },
