@@ -27,14 +27,16 @@ export class TelegramTransport implements ITransport {
       const chatId = msg.chat.id;
       const address = match ? match[1] : '';
       const username = msg.from?.username;
+      const userId = msg.from?.id;
       const firstName = msg.from?.first_name.replace(/[\[\]]*/g,'')
-      if (!username || !address) {
+      if (!address) {
         return;
       }
       const diff: number = await this.#cache.check(
         address,
-        username,
         this.name,
+        username,
+        userId?.toString(),
       );
       if (diff > 0) {
         this.#bot.sendMessage(
@@ -57,7 +59,7 @@ export class TelegramTransport implements ITransport {
             parse_mode: 'Markdown',
           }
         );
-        this.#cache.set(address, username, this.name);
+        await this.#cache.set(address,  this.name, username, userId?.toString());
       } catch (error) {
         console.error(error);
         await this.#bot.sendMessage(

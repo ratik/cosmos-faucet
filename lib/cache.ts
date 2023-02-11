@@ -13,32 +13,45 @@ export class Cache implements ICache {
 
   async get(
     address: string,
-    username: string,
     transport: string,
+    username?: string,
+    userId?: string,
   ): Promise<number> {
+    const vals = [
+      this.#cache.get(`addr: ${address}`),
+    ];
+    if (username) {
+      vals.push(this.#cache.get(`name: ${username}_${transport}`));
+    }
+    if (userId) {
+      vals.push(this.#cache.get(`userId: ${userId}_${transport}`));
+    }
     return Math.max(
-      (await this.#cache.get(`addr: ${address}`)) || 0,
-      (await this.#cache.get(`name: ${username}_${transport}`)) || 0,
-      0,
+      ...(await Promise.all(vals)).map((v) => (v || 0)),
     );
   }
 
   async set(
     address: string,
-    username: string,
     transport: string,
+    username?: string,
+    userId?: string,
   ): Promise<void> {
     const ts = Date.now();
     await this.#cache.set(`addr: ${address}`, ts);
-    await this.#cache.set(`name: ${username}_${transport}`, ts);
+    if (username)
+      await this.#cache.set(`name: ${username}_${transport}`, ts);
+    if (userId)
+      await this.#cache.set(`userId: ${userId}_${transport}`, ts);
   }
 
   async check(
     address: string,
-    username: string,
     transport: string,
+    username?: string,
+    userId?: string,
   ): Promise<number> {
-    const ts = await this.get(address, username, transport);
+    const ts = await this.get(address,  transport, username, userId);
     if (!ts) {
       return -1;
     }

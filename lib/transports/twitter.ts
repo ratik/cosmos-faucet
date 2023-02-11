@@ -95,15 +95,19 @@ export class TwitterTransport implements ITransport {
       console.log('going to fund ', username, address);
       const diff: number = await this.#cache.check(
         address,
-        username,
         this.name,
+        username
       );
       if (diff > 0) {
         return;
       }
       try {
         await fn(address);
-        this.#cache.set(address, username, this.name);
+        this.#cache.set(
+          address,
+          this.name,
+          username,
+        );
       } catch (error) {
         console.error(error);
       }

@@ -75,8 +75,9 @@ export class DiscordTransport implements ITransport {
       const username = msg.author.username;
       const diff: number = await this.#cache.check(
         address,
-        username,
         this.name,
+        username,
+        msg.author.id,
       );
       if (diff > 0) {
         msg.reply(
@@ -91,7 +92,7 @@ export class DiscordTransport implements ITransport {
             process.env.EXPLORER_URL || ''
           }${txHash}`,
         );
-        this.#cache.set(address, username, this.name);
+        this.#cache.set(address, this.name, username, msg.author.id);
       } catch (error) {
         console.error(error);
         await msg.reply(`Oh no! @${username} Something went wrong!`);
