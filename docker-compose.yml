@@ -2,10 +2,15 @@ version: '3'
 services:
   faucet:
     restart: always
-    container_name: faucet-all
+    container_name: faucet-astroport
     build: ./
     volumes:
       - faucet:/tmp/.storage
 volumes:
   faucet:
     external: false
+
+networks:
+  neutron-testing:
+    name: neutron-testing
+    external: true
