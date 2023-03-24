@@ -1,9 +1,4 @@
-import {
-  Client,
-  GatewayIntentBits,
-  REST,
-  Routes,
-} from 'discord.js';
+import { Client, GatewayIntentBits, REST, Routes } from 'discord.js';
 import { ITransport } from '../types/transport';
 import { Cache } from '../cache';
 
@@ -39,8 +34,7 @@ export class DiscordTransport implements ITransport {
     });
 
     this.#client.on('ready', async () => {
-      const commands = [
-      ];
+      const commands = [];
       //update slash commands
       try {
         const rest = new REST({ version: '10' }).setToken(this.#token);
@@ -62,12 +56,12 @@ export class DiscordTransport implements ITransport {
 
   onRequest(fn): void {
     this.#client.on('messageCreate', async (msg) => {
-      console.log("got message");
+      console.log('got message');
       if (msg.author.bot) return;
       if (msg.content.startsWith('!$request')) return;
       const channelName = msg.guild?.channels.cache.get(msg.channelId)?.name;
-      if (!channelName ||  !channelName.includes(this.#channelName)) {
-	      return;
+      if (!channelName || !channelName.includes(this.#channelName)) {
+        return;
       }
       const match = msg.content.match(/\$request\s+(.+)/);
       if (!match || !match[1]) return;

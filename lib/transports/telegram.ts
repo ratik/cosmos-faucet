@@ -28,7 +28,7 @@ export class TelegramTransport implements ITransport {
       const address = match ? match[1] : '';
       const username = msg.from?.username;
       const userId = msg.from?.id;
-      const firstName = msg.from?.first_name.replace(/[\[\]]*/g,'')
+      const firstName = msg.from?.first_name.replace(/[\[\]]*/g, '');
       if (!address) {
         return;
       }
@@ -44,7 +44,7 @@ export class TelegramTransport implements ITransport {
           `Don't be thirsty [${firstName}](tg://user?id=${msg.from?.id}), you can request again in ${diff} minutes`,
           {
             parse_mode: 'Markdown',
-          }
+          },
         );
         return;
       }
@@ -52,14 +52,14 @@ export class TelegramTransport implements ITransport {
         const txHash = await fn(address);
         await this.#bot.sendMessage(
           chatId,
-          `Cool! [${firstName}](tg://user?id=${msg.from?.id}) Here is your tx: ${
-            process.env.EXPLORER_URL || ''
-          }${txHash}`,
+          `Cool! [${firstName}](tg://user?id=${
+            msg.from?.id
+          }) Here is your tx: ${process.env.EXPLORER_URL || ''}${txHash}`,
           {
             parse_mode: 'Markdown',
-          }
+          },
         );
-        await this.#cache.set(address,  this.name, username, userId?.toString());
+        await this.#cache.set(address, this.name, username, userId?.toString());
       } catch (error) {
         console.error(error);
         await this.#bot.sendMessage(
@@ -67,7 +67,7 @@ export class TelegramTransport implements ITransport {
           `Oh no! [${firstName}](tg://user?id=${msg.from?.id}) Something went wrong!`,
           {
             parse_mode: 'Markdown',
-          }
+          },
         );
       }
     });

@@ -96,18 +96,22 @@ export class TwitterTransport implements ITransport {
       const diff: number = await this.#cache.check(
         address,
         this.name,
-        username
+        username,
       );
       if (diff > 0) {
+        console.log(
+          'twitter request error: another request for',
+          username,
+          address,
+          'will be available in',
+          diff,
+          'minutes',
+        );
         return;
       }
       try {
         await fn(address);
-        this.#cache.set(
-          address,
-          this.name,
-          username,
-        );
+        this.#cache.set(address, this.name, username);
       } catch (error) {
         console.error(error);
       }

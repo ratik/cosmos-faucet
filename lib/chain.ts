@@ -1,6 +1,7 @@
 import * as dotenv from 'dotenv';
 import { Wallet } from './wallet';
-import cosmosclient from '@cosmos-client/core';
+import { cosmosclient, proto, rest } from '@cosmos-client/core';
+import { cosmwasmproto } from '@cosmos-client/cosmwasm';
 import Long from 'long';
 dotenv.config();
 
@@ -8,6 +9,7 @@ export class Chain {
   #wallet: Wallet;
   #sdk: cosmosclient.CosmosSDK;
   #gasLimit: string;
+  #contracts: string[];
   #denom: string;
   #fee: string;
 
@@ -17,6 +19,9 @@ export class Chain {
     }
     if (!process.env.CHAIN_ID) {
       throw new Error('CHAIN_ID is not set');
+    }
+    if (!process.env.CW20_TOKENS) {
+      throw new Error('CW20_TOKENS is not set');
     }
     if (!process.env.DENOM) {
       throw new Error('DENOM is not set');
@@ -32,13 +37,17 @@ export class Chain {
       process.env.CHAIN_ID,
     );
     this.#gasLimit = process.env.GAS_LIMIT;
+    this.#contracts = process.env.CW20_TOKENS.split(',');
     this.#denom = process.env.DENOM;
     this.#fee = process.env.FEE;
   }
 
   async init() {
     await this.updateWallet();
-    console.log('Wallet initialized');
+    console.log(
+      'Wallet initialized. Faucet address:',
+      this.#wallet.account?.address.toString(),
+    );
   }
 
   async updateWallet() {
@@ -65,7 +74,7 @@ export class Chain {
     mnemonic: string,
     addrPrefix: string,
   ): Promise<Wallet> => {
-    const privKey = new cosmosclient.proto.cosmos.crypto.secp256k1.PrivKey({
+    const privKey = new proto.cosmos.crypto.secp256k1.PrivKey({
       key: await cosmosclient.generatePrivKeyFromMnemonic(mnemonic),
     });
 
@@ -82,7 +91,7 @@ export class Chain {
     });
     // eslint-disable-next-line no-prototype-builtins
     if (cosmosclient.ValAddress !== walletType) {
-      account = await cosmosclient.rest.auth
+      account = await rest.auth
         .account(this.#sdk, address)
         .then((res) =>
           cosmosclient.codec.protoJSONToInstance(
@@ -94,9 +103,7 @@ export class Chain {
           throw e;
         });
 
-      if (
-        !(account instanceof cosmosclient.proto.cosmos.auth.v1beta1.BaseAccount)
-      ) {
+      if (!(account instanceof proto.cosmos.auth.v1beta1.BaseAccount)) {
         throw new Error("can't get account");
       }
     }
@@ -104,7 +111,7 @@ export class Chain {
   };
 
   #execTx = async <T extends { constructor: Function }>(
-    fee: cosmosclient.proto.cosmos.tx.v1beta1.IFee,
+    fee: proto.cosmos.tx.v1beta1.IFee,
     msgs: T[],
   ): Promise<string> => {
     if (!this.#wallet.account) {
@@ -113,10 +120,10 @@ export class Chain {
     const protoMsgs = msgs.map((msg) =>
       cosmosclient.codec.instanceToProtoAny(msg),
     );
-    const txBody = new cosmosclient.proto.cosmos.tx.v1beta1.TxBody({
+    const txBody = new proto.cosmos.tx.v1beta1.TxBody({
       messages: protoMsgs,
     });
-    const authInfo = new cosmosclient.proto.cosmos.tx.v1beta1.AuthInfo({
+    const authInfo = new proto.cosmos.tx.v1beta1.AuthInfo({
       signer_infos: [
         {
           public_key: cosmosclient.codec.instanceToProtoAny(
@@ -124,8 +131,7 @@ export class Chain {
           ),
           mode_info: {
             single: {
-              mode: cosmosclient.proto.cosmos.tx.signing.v1beta1.SignMode
-                .SIGN_MODE_DIRECT,
+              mode: proto.cosmos.tx.signing.v1beta1.SignMode.SIGN_MODE_DIRECT,
             },
           },
           sequence: this.#wallet.account.sequence,
@@ -140,9 +146,9 @@ export class Chain {
     );
 
     txBuilder.addSignature(this.#wallet.privKey.sign(signDocBytes));
-    const res = await cosmosclient.rest.tx.broadcastTx(this.#sdk, {
+    const res = await rest.tx.broadcastTx(this.#sdk, {
       tx_bytes: txBuilder.txBytes(),
-      mode: cosmosclient.rest.tx.BroadcastTxMode.Block,
+      mode: rest.tx.BroadcastTxMode.Block,
     });
     const code = res?.data?.tx_response?.code;
     if (code !== 0) {
@@ -154,18 +160,30 @@ export class Chain {
   };
 
   fundAccount = async (to: string, amount: string): Promise<string> => {
+    let mintMsgs: cosmwasmproto.cosmwasm.wasm.v1.MsgExecuteContract[] =
+      this.#contracts.map((c) => {
+        return new cosmwasmproto.cosmwasm.wasm.v1.MsgExecuteContract({
+          sender: this.#wallet.account?.address.toString(),
+          contract: c,
+          msg: Buffer.from(
+            JSON.stringify({
+              mint: {
+                recipient: to,
+                amount: amount,
+              },
+            }),
+          ),
+        });
+      });
+
     await this.updateWallet();
-    const msgSend = new cosmosclient.proto.cosmos.bank.v1beta1.MsgSend({
-      from_address: this.#wallet.address.toString(),
-      to_address: to,
-      amount: [{ denom: this.#denom, amount }],
-    });
+    console.log('sending funds to', to);
     const res = await this.#execTx(
       {
         gas_limit: Long.fromString(this.#gasLimit),
         amount: [{ denom: this.#denom, amount: this.#fee }],
       },
-      [msgSend],
+      mintMsgs,
     );
     return res;
   };
