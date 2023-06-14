@@ -142,7 +142,7 @@ export class Chain {
     txBuilder.addSignature(this.#wallet.privKey.sign(signDocBytes));
     const res = await cosmosclient.rest.tx.broadcastTx(this.#sdk, {
       tx_bytes: txBuilder.txBytes(),
-      mode: cosmosclient.rest.tx.BroadcastTxMode.Block,
+      mode: cosmosclient.rest.tx.BroadcastTxMode.Sync,
     });
     const code = res?.data?.tx_response?.code;
     if (code !== 0) {
@@ -153,20 +153,38 @@ export class Chain {
     return txHash || '';
   };
 
-  fundAccount = async (to: string, amount: string): Promise<string> => {
+  fundAccount = async (to: string, amount: string, numAttempts = 20, waitTime = 1000): Promise<string> => {
     await this.updateWallet();
     const msgSend = new cosmosclient.proto.cosmos.bank.v1beta1.MsgSend({
       from_address: this.#wallet.address.toString(),
       to_address: to,
       amount: [{ denom: this.#denom, amount }],
     });
-    const res = await this.#execTx(
+    const txHash = await this.#execTx(
       {
         gas_limit: Long.fromString(this.#gasLimit),
         amount: [{ denom: this.#denom, amount: this.#fee }],
       },
       [msgSend],
     );
-    return res;
+
+    let error = null;
+    while (numAttempts > 0) {
+      await new Promise((r) => {
+        setTimeout(() => r(true), waitTime);
+      });
+      numAttempts--;
+      const data = await cosmosclient.rest.tx
+          .getTx(this.#sdk, txHash)
+          .catch((reason) => {
+            error = reason;
+            return null;
+          });
+      if (data != null) {
+        return data?.data?.tx_response?.txhash;
+      }
+    }
+    error = error ?? new Error('tx not included in block');
+    throw error;
   };
 }
