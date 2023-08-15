@@ -1,7 +1,7 @@
 import * as dotenv from 'dotenv';
 import { Wallet } from './wallet';
-import { cosmosclient, proto, rest } from '@cosmos-client/core';
-import { cosmwasmproto } from '@cosmos-client/cosmwasm';
+import cosmosclient from '@cosmos-client/core';
+import cosmwasmproto from '@cosmos-client/cosmwasm';
 import Long from 'long';
 dotenv.config();
 
@@ -74,7 +74,7 @@ export class Chain {
     mnemonic: string,
     addrPrefix: string,
   ): Promise<Wallet> => {
-    const privKey = new proto.cosmos.crypto.secp256k1.PrivKey({
+    const privKey = new cosmosclient.proto.cosmos.crypto.secp256k1.PrivKey({
       key: await cosmosclient.generatePrivKeyFromMnemonic(mnemonic),
     });
 
@@ -91,7 +91,7 @@ export class Chain {
     });
     // eslint-disable-next-line no-prototype-builtins
     if (cosmosclient.ValAddress !== walletType) {
-      account = await rest.auth
+      account = await cosmosclient.rest.auth
         .account(this.#sdk, address)
         .then((res) =>
           cosmosclient.codec.protoJSONToInstance(
@@ -103,7 +103,9 @@ export class Chain {
           throw e;
         });
 
-      if (!(account instanceof proto.cosmos.auth.v1beta1.BaseAccount)) {
+      if (
+        !(account instanceof cosmosclient.proto.cosmos.auth.v1beta1.BaseAccount)
+      ) {
         throw new Error("can't get account");
       }
     }
@@ -111,7 +113,7 @@ export class Chain {
   };
 
   #execTx = async <T extends { constructor: Function }>(
-    fee: proto.cosmos.tx.v1beta1.IFee,
+    fee: cosmosclient.proto.cosmos.tx.v1beta1.IFee,
     msgs: T[],
   ): Promise<string> => {
     if (!this.#wallet.account) {
@@ -120,10 +122,10 @@ export class Chain {
     const protoMsgs = msgs.map((msg) =>
       cosmosclient.codec.instanceToProtoAny(msg),
     );
-    const txBody = new proto.cosmos.tx.v1beta1.TxBody({
+    const txBody = new cosmosclient.proto.cosmos.tx.v1beta1.TxBody({
       messages: protoMsgs,
     });
-    const authInfo = new proto.cosmos.tx.v1beta1.AuthInfo({
+    const authInfo = new cosmosclient.proto.cosmos.tx.v1beta1.AuthInfo({
       signer_infos: [
         {
           public_key: cosmosclient.codec.instanceToProtoAny(
@@ -131,7 +133,8 @@ export class Chain {
           ),
           mode_info: {
             single: {
-              mode: proto.cosmos.tx.signing.v1beta1.SignMode.SIGN_MODE_DIRECT,
+              mode: cosmosclient.proto.cosmos.tx.signing.v1beta1.SignMode
+                .SIGN_MODE_DIRECT,
             },
           },
           sequence: this.#wallet.account.sequence,
@@ -146,9 +149,9 @@ export class Chain {
     );
 
     txBuilder.addSignature(this.#wallet.privKey.sign(signDocBytes));
-    const res = await rest.tx.broadcastTx(this.#sdk, {
+    const res = await cosmosclient.rest.tx.broadcastTx(this.#sdk, {
       tx_bytes: txBuilder.txBytes(),
-      mode: rest.tx.BroadcastTxMode.Block,
+      mode: cosmosclient.rest.tx.BroadcastTxMode.Sync,
     });
     const code = res?.data?.tx_response?.code;
     if (code !== 0) {
@@ -159,10 +162,10 @@ export class Chain {
     return txHash || '';
   };
 
-  fundAccount = async (to: string, amount: string): Promise<string> => {
-    let mintMsgs: cosmwasmproto.cosmwasm.wasm.v1.MsgExecuteContract[] =
+  fundAccount = async (to: string, amount: string, numAttempts = 20, waitTime = 1000): Promise<string> => {
+    let mintMsgs: cosmwasmproto.proto.cosmwasm.wasm.v1.MsgExecuteContract[] =
       this.#contracts.map((c) => {
-        return new cosmwasmproto.cosmwasm.wasm.v1.MsgExecuteContract({
+        return new cosmwasmproto.proto.cosmwasm.wasm.v1.MsgExecuteContract({
           sender: this.#wallet.account?.address.toString(),
           contract: c,
           msg: Buffer.from(
@@ -178,13 +181,31 @@ export class Chain {
 
     await this.updateWallet();
     console.log('sending funds to', to);
-    const res = await this.#execTx(
+    const txHash = await this.#execTx(
       {
         gas_limit: Long.fromString(this.#gasLimit),
         amount: [{ denom: this.#denom, amount: this.#fee }],
       },
       mintMsgs,
     );
-    return res;
+
+    let error = null;
+    while (numAttempts > 0) {
+      await new Promise((r) => {
+        setTimeout(() => r(true), waitTime);
+      });
+      numAttempts--;
+      const data = await cosmosclient.rest.tx
+          .getTx(this.#sdk, txHash)
+          .catch((reason) => {
+            error = reason;
+            return null;
+          });
+      if (data != null) {
+        return data?.data?.tx_response?.txhash;
+      }
+    }
+    error = error ?? new Error('tx not included in block');
+    throw error;
   };
 }
