@@ -145,7 +145,7 @@ export class Chain {
       mode: cosmosclient.rest.tx.BroadcastTxMode.Sync,
     });
     const code = res?.data?.tx_response?.code;
-    if (code !== 0) {
+    if (code !== 0 && code !== 19) { // 19 - tx already exists
       console.log(res.data.tx_response);
       throw new Error(`broadcast error`);
     }
@@ -175,11 +175,11 @@ export class Chain {
       });
       numAttempts--;
       const data = await cosmosclient.rest.tx
-          .getTx(this.#sdk, txHash)
-          .catch((reason) => {
-            error = reason;
-            return null;
-          });
+        .getTx(this.#sdk, txHash)
+        .catch((reason) => {
+          error = reason;
+          return null;
+        });
       if (data != null) {
         return data?.data?.tx_response?.txhash;
       }

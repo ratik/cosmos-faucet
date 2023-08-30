@@ -25,7 +25,7 @@ class Main {
     const amount = process.env.DROP_AMOUNT;
     await chain.init();
     console.log('Chain stuff has been initialized');
-
+    const timeout = parseInt(process.env.TX_TIMEOUT || '2s');
     await Promise.all(
       Object.values(transports).map((t) => {
         const x = new t();
